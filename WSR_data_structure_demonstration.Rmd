@@ -1,0 +1,178 @@
+---
+title: "Weather data structure and processing"
+author: "Tielens"
+date: "2024-09-11"
+output: html_document
+---
+
+
+This is a brief introduction to the structure and attributes of weather surveillance data.   
+
+Weather surveillance radar data is systematically collected in national radar networks, and the accessibility and and storage of this data varies across countries. Typically, weather surveillance radars collect data every 5-8 minutes. National meteorological institutes can choose to make this data accessible to the public, including scientists interested in animal movement. Here, we demonstrate the downloading and processing of weather surveillance radar (WSR) data collected above the Netherlands by the KNMI (Koninklijk Nederlands Meteorologisch Instituut), to provide insight into the data structure.  
+
+
+In this document, we will:
+* download WSR data from KNMI
+* reading in data using dedicated R package 'biorad'
+* explore the data structure and resolution
+* demonstrate our existing data processing workflow that extracts biological signals (birds and insects) and removes noise 
+* visualize several radar products to show the data on which we would like to deploy a classification algorithm   
+
+  
+  
+
+
+```{r setup}
+
+library("bioRad")
+library("ggplot2")
+library("tidyr")
+library(vol2birdR)
+#library("")
+
+
+
+setwd("/Users/elsketielens/postdoc/HiRAD/WSR/raw_scans/NEXRAD/")
+
+```
+
+
+
+
+
+
+
+```{r Download}
+
+setwd("/Users/elsketielens/postdoc/HiRAD/WSR/raw_scans/NEXRAD/")
+
+download_pvolfiles(date_min=as.POSIXct("2023-10-05 23:00:00"), date_max=as.POSIXct("2023-10-05 23:40:00"), radar="KINX")
+# store the names of downloaded files in my_pvolfiles
+my_pvolfiles <- list.files(recursive = TRUE, full.names = FALSE, pattern="KINX")
+# print to console our file names:
+my_pvolfiles
+
+
+
+
+```
+
+
+
+
+```{r Read}
+setwd("/Users/elsketielens/postdoc/HiRAD/WSR/raw_scans/NEXRAD/")
+# load polar volume data. let's just pick the first sweep
+my_pvol<-read_pvolfile(my_pvolfiles[1])
+
+# extract a single scan (biologists are usually primarily interested in the lowest elevation angle)
+my_scan <- get_scan(my_pvol, 0.5)
+
+# project this scan as planned position indicator
+my_ppi<-get_scan(my_pvol, 0.5) %>%
+    project_as_ppi() 
+
+read_pvolfile(my_pvolfiles[1]) %>%
+    get_scan(0.5) %>%
+    project_as_ppi() %>%
+    plot(param = "RHOHV")
+
+```
+
+### Examine the data structure
+
+* the data is stored in an array
+* each sweep is a single time point (collected by the radar usually every 5 minutes)
+* each sweep contains data from multiple altitudinal scans
+* the spatial resolution of the data is an azimuthal grid of 0.5 degrees by 200 m, for 100-300 km (depending on the target)
+
+* Each sweep contains 6 data products, as well as some associated information (radar site, lat lon, date time).  
+
+
+
+
+```{r Explore}
+
+my_pvol$radar
+# KHGX
+
+my_pvol$datetime
+# May 4 2017
+
+length(my_pvol$scans)
+# 14 scans, ie 14 elevation angles
+
+my_pvol$scans[1]
+# this array has dimensions 1201x720. It's 0.5 degree azimuth 'rays' across a full rotation of 360 degrees (720 rays), with 250 m deep sampling volumes for 300 km radius extent (1201 bins). It is elevation angle 0.5 degrees (the lowest). It contains 6 radar product parameters. 
+
+# looking at individual arrays for each parameter
+str(my_scan$params$DBZH)
+
+
+
+```
+
+
+### Preprocessing
+
+We can filter out precipitation using a basic method with a cutoff for specific data products. We can also use a more sophisticated algorithm such as mistnet (Lin et al 2019, Methods in Ecology & Evolution). Here is an example classifying weather and removing it. 
+
+```{r Process}
+setwd("/Users/elsketielens/postdoc/HiRAD/WSR/raw_scans/NEXRAD/")
+
+# Here's a raw data array (polar volume) with biological and non-biological scatter scatter
+plot(my_ppi,  param = "DBZH", zlim = c(-20, 40))
+
+
+# We can use the mistnet algorithm to classify and remove weather
+# apply the MistNet model to the polar volume file and load it as a polar volume (pvol):
+my_pvol <- apply_mistnet(my_pvolfiles[1])
+
+my_scan <- get_scan(my_pvol, 0.5)
+# plot some summary info about the scan to the console:
+my_scan
+
+# project the scan as ppi:
+my_ppi <- project_as_ppi(my_scan)
+# plot the probability for the WEATHER class
+plot(my_ppi, param = 'WEATHER')
+plot(my_ppi, param = 'CELL')
+# let's remove the identified precipitation area (and additional border) from the ppi, and plot it:
+my_ppi_clean <- calculate_param(my_ppi, DBZH = ifelse(CELL >= 1, NA, DBZH))
+map(my_ppi_clean, map="cartolight", param = 'DBZH')
+
+# also generate arrays with only clean data for other radar products
+my_ppi_clean <- calculate_param(my_ppi, RHOHV = ifelse(CELL >= 1, NA, RHOHV))
+my_ppi_clean <- calculate_param(my_ppi, VRADH = ifelse(CELL >= 1, NA, VRADH))
+
+
+
+```
+
+
+
+### Visualize data products
+
+Then we can plot various radar products that give information on attributes of the targets. 
+```{r Visualize}
+
+# Reflectivity
+map(my_ppi_clean, map="cartolight", param = 'DBZH')
+
+# Correlation coefficient
+map(my_ppi_clean, map="cartolight", param = 'RHOHV')
+
+# Radial velocity
+map(my_ppi_clean, map="cartolight", param = 'VRADH')
+
+```
+
+
+day with lots of bird migration
+regular day insect activity
+insect migrating in front
+
+
+
+For our animal classification algorithm, we propose to use data from multiple years across 3 countries (NL, BE, DE). 
+
