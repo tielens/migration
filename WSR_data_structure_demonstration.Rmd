@@ -2,7 +2,9 @@
 title: "Weather data structure and processing"
 author: "Tielens"
 date: "2024-09-11"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 
@@ -11,18 +13,18 @@ This is a brief introduction to the structure and attributes of weather surveill
 Weather surveillance radar data is systematically collected in national radar networks, and the accessibility and and storage of this data varies across countries. Typically, weather surveillance radars collect data every 5-8 minutes. National meteorological institutes can choose to make this data accessible to the public, including scientists interested in animal movement. Here, we demonstrate the downloading and processing of weather surveillance radar (WSR) data collected above the Netherlands by the KNMI (Koninklijk Nederlands Meteorologisch Instituut), to provide insight into the data structure.  
 
 
-In this document, we will:
-* download WSR data from KNMI
-* reading in data using dedicated R package 'biorad'
-* explore the data structure and resolution
-* demonstrate our existing data processing workflow that extracts biological signals (birds and insects) and removes noise 
-* visualize several radar products to show the data on which we would like to deploy a classification algorithm   
+In this document, we will:  
+* download WSR data from KNMI  
+* reading in data using dedicated R package 'biorad'  
+* explore the data structure and resolution  
+* demonstrate our existing data processing workflow that extracts biological signals (birds and insects) and removes noise   
+* visualize several radar products to show the data on which we would like to deploy a classification algorithm     
 
   
   
 
 
-```{r setup}
+```{r setup, message=F, warning=F}
 
 library("bioRad")
 library("ggplot2")
@@ -42,25 +44,28 @@ setwd("/Users/elsketielens/postdoc/HiRAD/WSR/raw_scans/NEXRAD/")
 
 
 
-```{r Download}
+```{r Download, message=F, warning=F}
 
 setwd("/Users/elsketielens/postdoc/HiRAD/WSR/raw_scans/NEXRAD/")
 
-download_pvolfiles(date_min=as.POSIXct("2023-10-05 23:00:00"), date_max=as.POSIXct("2023-10-05 23:40:00"), radar="KINX")
+#download_pvolfiles(date_min=as.POSIXct("2023-10-05 23:00:00"), date_max=as.POSIXct("2023-10-05 23:40:00"), radar="KINX")
 # store the names of downloaded files in my_pvolfiles
-my_pvolfiles <- list.files(recursive = TRUE, full.names = FALSE, pattern="KINX")
+my_pvolfiles <- list.files(recursive = TRUE, full.names = FALSE, pattern="KINX2023")
 # print to console our file names:
 my_pvolfiles
 
 
 
+#download_pvolfiles(date_min=as.POSIXct("2018-09-25 19:00:00"), date_max=as.POSIXct("2018-09-25 19:40:00"), radar="KINX")
+#download_pvolfiles(date_min=as.POSIXct("2014-07-21 04:00:00"), date_max=as.POSIXct("2014-07-21 04:40:00"), radar="KARX")
+#download_pvolfiles(date_min=as.POSIXct("2024-08-30 04:00:00"), date_max=as.POSIXct("2024-08-30 04:40:00"), radar="KTLX")
 
 ```
 
 
 
 
-```{r Read}
+```{r Read, message=F, warning=F}
 setwd("/Users/elsketielens/postdoc/HiRAD/WSR/raw_scans/NEXRAD/")
 # load polar volume data. let's just pick the first sweep
 my_pvol<-read_pvolfile(my_pvolfiles[1])
@@ -70,28 +75,25 @@ my_scan <- get_scan(my_pvol, 0.5)
 
 # project this scan as planned position indicator
 my_ppi<-get_scan(my_pvol, 0.5) %>%
-    project_as_ppi() 
-
-read_pvolfile(my_pvolfiles[1]) %>%
-    get_scan(0.5) %>%
     project_as_ppi() %>%
-    plot(param = "RHOHV")
+  plot(param = "DBZH")
+
 
 ```
 
 ### Examine the data structure
 
-* the data is stored in an array
-* each sweep is a single time point (collected by the radar usually every 5 minutes)
-* each sweep contains data from multiple altitudinal scans
-* the spatial resolution of the data is an azimuthal grid of 0.5 degrees by 200 m, for 100-300 km (depending on the target)
+* the data is stored in an array  
+* each sweep is a single time point (collected by the radar usually every 5 minutes)  
+* each sweep contains data from multiple altitudinal scans  
+* the spatial resolution of the data is an azimuthal grid of 0.5 degrees by 200 m, for 100-300 km (depending on the target). 
 
-* Each sweep contains 6 data products, as well as some associated information (radar site, lat lon, date time).  
-
-
+* Each sweep contains 6 data products, as well as some associated information (radar site, lat lon, date time).    
 
 
-```{r Explore}
+
+
+```{r Explore, message=F, warning=F}
 
 my_pvol$radar
 # KHGX
@@ -115,9 +117,9 @@ str(my_scan$params$DBZH)
 
 ### Preprocessing
 
-We can filter out precipitation using a basic method with a cutoff for specific data products. We can also use a more sophisticated algorithm such as mistnet (Lin et al 2019, Methods in Ecology & Evolution). Here is an example classifying weather and removing it. 
+We can filter out precipitation using a basic method with a cutoff for specific data products. We can also use a more sophisticated algorithm such as mistnet (Lin et al 2019, Methods in Ecology & Evolution). Here is an example classifying weather and removing it.  
 
-```{r Process}
+```{r Process, message=F, warning=F}
 setwd("/Users/elsketielens/postdoc/HiRAD/WSR/raw_scans/NEXRAD/")
 
 # Here's a raw data array (polar volume) with biological and non-biological scatter scatter
@@ -133,17 +135,17 @@ my_scan <- get_scan(my_pvol, 0.5)
 my_scan
 
 # project the scan as ppi:
-my_ppi <- project_as_ppi(my_scan)
+my_ppi <- project_as_ppi(my_scan , range_max = 150000)
 # plot the probability for the WEATHER class
 plot(my_ppi, param = 'WEATHER')
 plot(my_ppi, param = 'CELL')
 # let's remove the identified precipitation area (and additional border) from the ppi, and plot it:
 my_ppi_clean <- calculate_param(my_ppi, DBZH = ifelse(CELL >= 1, NA, DBZH))
-map(my_ppi_clean, map="cartolight", param = 'DBZH')
+map(my_ppi_clean,  param = 'DBZH')
 
 # also generate arrays with only clean data for other radar products
-my_ppi_clean <- calculate_param(my_ppi, RHOHV = ifelse(CELL >= 1, NA, RHOHV))
-my_ppi_clean <- calculate_param(my_ppi, VRADH = ifelse(CELL >= 1, NA, VRADH))
+my_ppi_clean <- calculate_param(my_ppi_clean, RHOHV = ifelse(CELL >= 1, NA, RHOHV))
+my_ppi_clean <- calculate_param(my_ppi_clean, VRADH = ifelse(CELL >= 1, NA, VRADH))
 
 
 
@@ -154,25 +156,83 @@ my_ppi_clean <- calculate_param(my_ppi, VRADH = ifelse(CELL >= 1, NA, VRADH))
 ### Visualize data products
 
 Then we can plot various radar products that give information on attributes of the targets. 
-```{r Visualize}
+```{r Visualize, message=F, warning=F}
 
 # Reflectivity
-map(my_ppi_clean, map="cartolight", param = 'DBZH')
+plot(my_ppi_clean,  param = 'DBZH')
 
 # Correlation coefficient
-map(my_ppi_clean, map="cartolight", param = 'RHOHV')
+plot(my_ppi_clean,  param = 'RHOHV')
 
 # Radial velocity
-map(my_ppi_clean, map="cartolight", param = 'VRADH')
+plot(my_ppi_clean,  param = 'VRADH')
 
 ```
 
 
-day with lots of bird migration
-regular day insect activity
-insect migrating in front
+### Some examples
+
+
+#### Insect activity on radar
+
+
+Insect migration
+
+```{r, message=F, warning=F}
+
+setwd("/Users/elsketielens/postdoc/HiRAD/WSR/raw_scans/NEXRAD/")
+
+insectmigrationOK<- list.files(recursive = TRUE, full.names = FALSE, pattern="KINX2018")
+my_pvolInsMig<-read_pvolfile(insectmigrationOK[2])%>%
+  get_scan( 0.5)
+plot(project_as_ppi(my_pvolInsMig, range_max = 150000),  param="DBZH")
+
+insectmigrationOK<- list.files(recursive = TRUE, full.names = FALSE, pattern="KINX2018")
+my_pvolInsMig<-apply_mistnet(insectmigrationOK[1])%>%
+  get_scan(0.5)
+plot(project_as_ppi(my_pvolInsMig, range_max = 150000),  param="DBZH")
+  
+
+```
+  
+Insect emergence (mayflies) from aquatic habitats
+  
+```{r, message=F, warning=F}
+
+setwd("/Users/elsketielens/postdoc/HiRAD/WSR/raw_scans/NEXRAD/")
+
+insectemergenceWI<- list.files(recursive = TRUE, full.names = FALSE, pattern="KARX2014")
+my_pvolInsEmerg<-read_pvolfile(insectemergenceWI[2])%>%
+  get_scan( 0.5)
+plot(project_as_ppi(my_pvolInsEmerg, range_max = 150000),  param="DBZH")
+
+```
+
+#### Bird migration
+
+  
+```{r, message=F, warning=F}
+
+setwd("/Users/elsketielens/postdoc/HiRAD/WSR/raw_scans/NEXRAD/")
+
+birdmigrationOK<- list.files(recursive = TRUE, full.names = FALSE, pattern="KTLX2024")
+my_pvolBirdMig<-read_pvolfile(birdmigrationOK[1])%>%
+  get_scan( 0.5)
+plot(project_as_ppi(my_pvolBirdMig, range_max = 150000),  param="DBZH")
 
 
 
-For our animal classification algorithm, we propose to use data from multiple years across 3 countries (NL, BE, DE). 
+
+
+
+```
+
+
+
+
+
+
+For our animal classification algorithm, we propose to use data from multiple years across 3 countries (NL, BE, DE). Historical data is archived and provides millions of scans for training. 
+  
+  
 
