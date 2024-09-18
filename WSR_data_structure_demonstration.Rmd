@@ -30,7 +30,7 @@ library("bioRad")
 library("ggplot2")
 library("tidyr")
 library(vol2birdR)
-#library("")
+
 
 
 
@@ -48,17 +48,17 @@ setwd("/Users/elsketielens/postdoc/HiRAD/WSR/raw_scans/NEXRAD/")
 
 setwd("/Users/elsketielens/postdoc/HiRAD/WSR/raw_scans/NEXRAD/")
 
-#download_pvolfiles(date_min=as.POSIXct("2023-10-05 23:00:00"), date_max=as.POSIXct("2023-10-05 23:40:00"), radar="KINX")
+download_pvolfiles(date_min=as.POSIXct("2023-10-05 23:00:00"), date_max=as.POSIXct("2023-10-05 23:40:00"), radar="KINX")
 # store the names of downloaded files in my_pvolfiles
 my_pvolfiles <- list.files(recursive = TRUE, full.names = FALSE, pattern="KINX2023")
 # print to console our file names:
 my_pvolfiles
 
 
-
-#download_pvolfiles(date_min=as.POSIXct("2018-09-25 19:00:00"), date_max=as.POSIXct("2018-09-25 19:40:00"), radar="KINX")
-#download_pvolfiles(date_min=as.POSIXct("2014-07-21 04:00:00"), date_max=as.POSIXct("2014-07-21 04:40:00"), radar="KARX")
-#download_pvolfiles(date_min=as.POSIXct("2024-08-30 04:00:00"), date_max=as.POSIXct("2024-08-30 04:40:00"), radar="KTLX")
+# Download specific examples for birds & insects:
+download_pvolfiles(date_min=as.POSIXct("2018-09-25 19:00:00"), date_max=as.POSIXct("2018-09-25 19:40:00"), radar="KINX")
+download_pvolfiles(date_min=as.POSIXct("2014-07-21 04:00:00"), date_max=as.POSIXct("2014-07-21 04:40:00"), radar="KARX")
+download_pvolfiles(date_min=as.POSIXct("2024-08-30 04:00:00"), date_max=as.POSIXct("2024-08-30 04:40:00"), radar="KTLX")
 
 ```
 
@@ -141,7 +141,7 @@ plot(my_ppi, param = 'WEATHER')
 plot(my_ppi, param = 'CELL')
 # let's remove the identified precipitation area (and additional border) from the ppi, and plot it:
 my_ppi_clean <- calculate_param(my_ppi, DBZH = ifelse(CELL >= 1, NA, DBZH))
-map(my_ppi_clean,  param = 'DBZH')
+map(my_ppi_clean,  map="cartolight",param = 'DBZH')
 
 # also generate arrays with only clean data for other radar products
 my_ppi_clean <- calculate_param(my_ppi_clean, RHOHV = ifelse(CELL >= 1, NA, RHOHV))
@@ -159,13 +159,13 @@ Then we can plot various radar products that give information on attributes of t
 ```{r Visualize, message=F, warning=F}
 
 # Reflectivity
-plot(my_ppi_clean,  param = 'DBZH')
+map(my_ppi_clean,  map="cartolight", param = 'DBZH')
 
 # Correlation coefficient
-plot(my_ppi_clean,  param = 'RHOHV')
+map(my_ppi_clean, map="cartolight",  param = 'RHOHV')
 
 # Radial velocity
-plot(my_ppi_clean,  param = 'VRADH')
+map(my_ppi_clean, map="cartolight",  param = 'VRADH')
 
 ```
 
@@ -182,15 +182,11 @@ Insect migration
 
 setwd("/Users/elsketielens/postdoc/HiRAD/WSR/raw_scans/NEXRAD/")
 
-insectmigrationOK<- list.files(recursive = TRUE, full.names = FALSE, pattern="KINX2018")
-my_pvolInsMig<-read_pvolfile(insectmigrationOK[2])%>%
-  get_scan( 0.5)
-plot(project_as_ppi(my_pvolInsMig, range_max = 150000),  param="DBZH")
 
 insectmigrationOK<- list.files(recursive = TRUE, full.names = FALSE, pattern="KINX2018")
 my_pvolInsMig<-apply_mistnet(insectmigrationOK[1])%>%
   get_scan(0.5)
-plot(project_as_ppi(my_pvolInsMig, range_max = 150000),  param="DBZH")
+map(project_as_ppi(my_pvolInsMig, range_max = 150000), map="cartolight", param="DBZH")
   
 
 ```
@@ -204,7 +200,7 @@ setwd("/Users/elsketielens/postdoc/HiRAD/WSR/raw_scans/NEXRAD/")
 insectemergenceWI<- list.files(recursive = TRUE, full.names = FALSE, pattern="KARX2014")
 my_pvolInsEmerg<-read_pvolfile(insectemergenceWI[2])%>%
   get_scan( 0.5)
-plot(project_as_ppi(my_pvolInsEmerg, range_max = 150000),  param="DBZH")
+map(project_as_ppi(my_pvolInsEmerg, range_max = 150000), map="cartolight", param="DBZH")
 
 ```
 
@@ -218,7 +214,7 @@ setwd("/Users/elsketielens/postdoc/HiRAD/WSR/raw_scans/NEXRAD/")
 birdmigrationOK<- list.files(recursive = TRUE, full.names = FALSE, pattern="KTLX2024")
 my_pvolBirdMig<-read_pvolfile(birdmigrationOK[1])%>%
   get_scan( 0.5)
-plot(project_as_ppi(my_pvolBirdMig, range_max = 150000),  param="DBZH")
+map(project_as_ppi(my_pvolBirdMig, range_max = 150000), map="cartolight", param="DBZH")
 
 
 
